@@ -43,6 +43,12 @@ extern "C"
 #define COLOR_ORDER RGB
 #define EEPROM_SIZE 128
 
+#define MIN(x,y)              ((x) > (y)) ? (y) : (x)
+#define MAX(x,y)              ((x) > (y)) ? (x) : (y)
+#define CONSTRAIN(a, l, r)    (MIN(MAX((l), (a)), (r)))
+#define NUM_ROWS	11
+#define NUM_COLS	11
+
 // configure your timezone rules here how described on https://github.com/JChristensen/Timezone
 TimeChangeRule myDST =
 { "CEST", Last, Sun, Mar, 2, +120 };    //Daylight time = UTC + 2 hours
@@ -92,25 +98,25 @@ enum
 // display layout and led order
 /*
  E	S	K	I	S	T	L	E	T	W	A		110 -> 120
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 |
  O	G	E	N	A	U	B	F	Ü	N	F		109 <- 099
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 	 	|
  Z	E	H	N	Z	W	A	N	Z	I	G		088 -> 098
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 |
  D	R	E	I	V	I	E	R	T	E	L		087 <- 077
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 	 	|
  T	G	N	A	C	H	V	O	R	U	M		066 -> 076
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 |
  H	A	L	B	Q	Z	W	Ö	L	F	P		065 <- 055
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 	 	|
  Z 	W	E	I	N	S	I	E	B	E	N		044 -> 054
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 |
  K	D	R	E	I	R	H 	F	Ü	N	F		043 <- 033
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 	 	|
  E	L	F	N	E	U	N	V	I	E	R		022 -> 032
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 |
  W	A	C	H	T	Z	E	H	N	R	S		021 <- 011
- |
+ 	 	 	 	 	 	 	 	 	 	 	 	 	 	|
  B	S	E	C	H	S	F	M	U	H	R		000 -> 010
  */
 
@@ -186,6 +192,8 @@ typedef struct
 	unsigned char valid;
 } wordclock_word_processor_struct;
 
+float mood_offset = 0.0, mood_step = 0.002;
+
 wordclock_word_processor_struct wordclock_word_processor;
 wordclock_word_processor_struct *wordp = &wordclock_word_processor;
 
@@ -201,22 +209,38 @@ ESP8266WebServer server(80);   //instantiate server at port 80 (http port)
 
 char tstr2[128] = "";
 
+// own fmod() because of issue in the libm.a ( see https://github.com/esp8266/Arduino/issues/612 )
+float xfmod(float numer, float denom)
+{
+	int ileft;
+
+	if (!denom)
+		return numer;
+
+	ileft = numer / denom;
+	return numer - (ileft * denom);
+}
+
 void page_out(void)
 {
-	char tstr[16];
-
 	server.sendContent(
 			"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\"><html><head><meta http-equiv=\"content-type\"content=\"text/html; charset=ISO-8859-1\"><title>ESP8266_WordClock_Server</title></head><body><h1 style=\"text-align: center; width: 504px;\" align=\"left\"><span style=\"color: rgb(0, 0, 153); font-weight: bold;\">ESP8266 WordClock-Server</span></h1><h3 style=\"text-align: center; width: 504px;\" align=\"left\"><span style=\"color: rgb(0, 0, 0); font-weight: bold;\">");
 	server.sendContent(tstr2);
 	server.sendContent(
 			"</span></h3><form method=\"get\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"144\" width=\"457\"><tbody><tr><td width=\"120\"><b><big>Anzeigemodus</big></b></td><td width=\"50\"></td><td><select name=\"MODE\"><option value=\"0\"");
-	if (!wordp->mode)
+	if (wordp->mode == 0)
 		server.sendContent(" selected");
-	server.sendContent(">Ostdeutsch></option><option value=\"1\"");
-	if (wordp->mode)
+	server.sendContent(">Clock Ostdeutsch</option><option value=\"1\"");
+	if (wordp->mode == 1)
+		server.sendContent(" selected");
+	server.sendContent(">Clock Westdeutsch</option><option value=\"2\"");
+	if (wordp->mode == 2)
+		server.sendContent(" selected");
+	server.sendContent(">Moodlight diagonal</option><option value=\"3\"");
+	if (wordp->mode == 3)
 		server.sendContent(" selected");
 	server.sendContent(
-			">Westdeutsch></option></select></td></tr><tr><td><b><big>Pr&#228;zision</big></b></td><td></td><td><input name=\"PREC_ETWA\" type=\"Checkbox\" mode=\"submit\"");
+			">Moodlight fl&#228;chig</option></select></td></tr><tr><td><b><big>Pr&#228;zision</big></b></td><td></td><td><input name=\"PREC_ETWA\" type=\"Checkbox\" mode=\"submit\"");
 	if (wordp->precise & 0x02)
 		server.sendContent(" checked");
 	server.sendContent("> etwa <input name=\"PREC_GENAU\" type=\"Checkbox\" mode=\"submit\"");
@@ -240,6 +264,131 @@ void page_out(void)
 	server.sendContent(String(wordp->b));
 	server.sendContent(
 			"\"> %</td></tr></tbody></table><br><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><input name=\"SEND\" value=\"  Senden  \" type=\"submit\"></td></tr></tbody></table></form><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><form method=\"get\"><input name=\"SAVE\" value=\"Speichern\" type=\"submit\"></form></td></tr></tbody></table></body></html>");
+}
+
+void hsl_to_rgb(int hue, int sat, int lum, int* r, int* g, int* b)
+{
+	int v;
+
+	v = (lum < 128) ? (lum * (256 + sat)) >> 8 : (((lum + sat) << 8) - lum * sat) >> 8;
+	if (v <= 0)
+	{
+		*r = *g = *b = 0;
+	}
+	else
+	{
+		int m;
+		int sextant;
+		int fract, vsf, mid1, mid2;
+
+		m = lum + lum - v;
+		hue *= 6;
+		sextant = hue >> 8;
+		fract = hue - (sextant << 8);
+		vsf = v * fract * (v - m) / v >> 8;
+		mid1 = m + vsf;
+		mid2 = v - vsf;
+		switch (sextant)
+		{
+		case 0:
+			*r = v;
+			*g = mid1;
+			*b = m;
+			break;
+		case 1:
+			*r = mid2;
+			*g = v;
+			*b = m;
+			break;
+		case 2:
+			*r = m;
+			*g = v;
+			*b = mid1;
+			break;
+		case 3:
+			*r = m;
+			*g = mid2;
+			*b = v;
+			break;
+		case 4:
+			*r = mid1;
+			*g = m;
+			*b = v;
+			break;
+		case 5:
+			*r = v;
+			*g = m;
+			*b = mid2;
+			break;
+		}
+	}
+}
+
+int map_output_to_point(int output, int width, int height, int* x, int* y)
+{
+	int ret = -1, px, py;
+
+	if (output < NUM_LEDS)
+	{
+		ret = 0;
+		py = output / NUM_COLS;
+		px = output % NUM_ROWS;
+		if (py & 0x01)
+			px = NUM_COLS - px - 1;
+
+		*x = (int) CONSTRAIN((float )px * ((float )width) / (float )NUM_COLS, 0, width);
+		*y = (int) CONSTRAIN((float )py * ((float )height) / (float )NUM_ROWS, 0, height);
+	}
+	else
+	{
+		*x = *y = -1;
+	}
+
+	return ret;
+}
+
+void update_moodlight(void)
+{
+	int i;
+
+	mood_offset = xfmod(mood_offset + mood_step, 1.0);
+
+	switch (wordp->mode)
+	{
+
+	case 2:
+	{
+		for (i = 0; i < NUM_LEDS; i++)
+		{
+			int x, y, r, g, b;
+			float f;
+
+			map_output_to_point(i, 1024, 1024, &x, &y);
+
+			f = CONSTRAIN((x / 1024.0 + y / 1024.0) / 2.0, 0.0, 1.0);
+			f = xfmod(f + mood_offset, 1.0);
+
+			hsl_to_rgb(255 * f, 255, 128, &r, &g, &b);
+
+			leds[i] = CRGB((r * (int) wordp->brightness) / 100, (g * (int) wordp->brightness) / 100,
+					(b * (int) wordp->brightness) / 100);
+		}
+	}
+		break;
+
+	case 3:
+	{
+		for (i = 0; i < NUM_LEDS; i++)
+		{
+			int r, g, b;
+			hsl_to_rgb(255 * mood_offset, 255, 128, &r, &g, &b);
+			leds[i] = CRGB((r * (int) wordp->brightness) / 100, (g * (int) wordp->brightness) / 100,
+					(b * (int) wordp->brightness) / 100);
+		}
+	}
+		break;
+
+	}
 }
 
 void setup()
@@ -321,8 +470,8 @@ void setup()
 				else if(server.argName(i) == "MODE")
 				{
 					wordp->mode = abs(atoi(server.arg(i).c_str()));
-					if(wordp->mode > 1)
-					wordp->mode = 1;
+					if(wordp->mode > 3)
+					wordp->mode = 3;
 				}
 				else if(server.argName(i) == "BRIGHT")
 				{
@@ -351,16 +500,16 @@ void setup()
 				else if(server.argName(i) == "PREC_ETWA")
 				{
 					if(server.arg(i) == "on")
-						wordp->precise |= 0x02;
+					wordp->precise |= 0x02;
 					else
-						wordp->precise &= ~0x02;
+					wordp->precise &= ~0x02;
 				}
 				else if(server.argName(i) == "PREC_GENAU")
 				{
 					if(server.arg(i) == "on")
-						wordp->precise |= 0x01;
+					wordp->precise |= 0x01;
 					else
-						wordp->precise &= ~0x01;
+					wordp->precise &= ~0x01;
 				}
 				else if(server.argName(i) == "TRAILER")
 				{
@@ -386,48 +535,50 @@ void update_outputs(void)
 	time_t rawtime, loctime, atime;
 	int lvals[10];
 
-	if (timeClient.update())						// NTP-update
+	if (wordp->mode < 2)
 	{
-		umicros = amicros;
-		rawtime = timeClient.getEpochTime();		// get NTP-time
-		loctime = myTZ.toLocal(rawtime);			// calc local time
-
-		emin = minute(loctime);
-		rawtime += 150;
-		atime = myTZ.toLocal(rawtime);			// calc local time
-
-		min = minute(atime) / 5;
-		hr = (hour(atime) + CALC[wordp->mode][min][3]) % 12;
-		if (!hr)
-			hr = 12;
-
-		j = 0;
-		lvals[j++] = _ES_;
-		lvals[j++] = _IST_;
-		if (emin % 5)
+		if (timeClient.update())						// NTP-update
 		{
-			if (wordp->precise & 0x02)
-				lvals[j++] = _ETWA_;
-		}
-		else
-		{
-			if (wordp->precise & 0x01)
-				lvals[j++] = _GENAU_;
-		}
-		for (i = 0; i < 3; i++)
-		{
-			if (CALC[wordp->mode][min][i])
+			umicros = amicros;
+			rawtime = timeClient.getEpochTime();		// get NTP-time
+			loctime = myTZ.toLocal(rawtime);			// calc local time
+
+			emin = minute(loctime);
+			rawtime += 150;
+			atime = myTZ.toLocal(rawtime);			// calc local time
+
+			min = minute(atime) / 5;
+			hr = (hour(atime) + CALC[wordp->mode][min][3]) % 12;
+			if (!hr)
+				hr = 12;
+
+			j = 0;
+			lvals[j++] = _ES_;
+			lvals[j++] = _IST_;
+			if (emin % 5)
 			{
-				lvals[j++] = CALC[wordp->mode][min][i];
+				if (wordp->precise & 0x02)
+					lvals[j++] = _ETWA_;
 			}
-		}
-		lvals[j++] = (hr == 1) ? ((wordp->trailer) ? _EIN_ : _EINS_) : hr;
-		if (wordp->trailer)
-			lvals[j++] = _UHR_;
-		lvals[j] = 0;
+			else
+			{
+				if (wordp->precise & 0x01)
+					lvals[j++] = _GENAU_;
+			}
+			for (i = 0; i < 3; i++)
+			{
+				if (CALC[wordp->mode][min][i])
+				{
+					lvals[j++] = CALC[wordp->mode][min][i];
+				}
+			}
+			lvals[j++] = (hr == 1) ? ((wordp->trailer) ? _EIN_ : _EINS_) : hr;
+			if (wordp->trailer)
+				lvals[j++] = _UHR_;
+			lvals[j] = 0;
 
-//			if ((!second(loctime)) || firstrun)			// full minute or first cycle
-		{
+			//			if ((!second(loctime)) || firstrun)			// full minute or first cycle
+
 			CRGB actcolor = CRGB(((int) wordp->r * (int) wordp->brightness) / 40,
 					((int) wordp->g * (int) wordp->brightness) / 40, ((int) wordp->b * (int) wordp->brightness) / 40);
 
@@ -453,11 +604,16 @@ void update_outputs(void)
 			else
 				delay(100);
 
-			FastLED.show();
-//				delay(58000 - ((micros() - amicros) / 1000) - (second(loctime) * 1000)); // wait for end of minute
-//				firstrun = 0;
 		}
+		delay(150);
 	}
+	else
+	{
+		update_moodlight();
+		delay(50);
+	}
+
+	FastLED.show();
 }
 
 void loop()
@@ -466,7 +622,6 @@ void loop()
 	{
 		amicros = micros();
 		update_outputs();
-		delay(150);
 		server.handleClient();
 		if (((amicros - umicros) / 1000000L) > 3600)	// if no sync for more than one hour
 			digitalWrite(BUILTIN_LED, HIGH);			// switch off LED

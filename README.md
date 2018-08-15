@@ -5,7 +5,7 @@
 Eine Uhr mit Textanzeige der Uhrzeit basierend auf einem [ESP8266 NodeMCU](https://www.aliexpress.com/item/1PCS-ESP8266-NodeMCU-V3-Lua-WIFI-module-memory-32M-Flash-USB-serial-CH340G/32820380705.html) mit adressierbaren RGB-LED-Stripes und 3D-druckbaren Gehäuseteilen
 Die 3D-Modelle für das Gehäuse sind auf thingiverse.com [Uhren-Gehäuse](http://www.thingiverse.com/thing:2137765) und [ESP8266-Gehäuse](https://www.thingiverse.com/thing:2842012) verfügbar.
 
-Die Software ist eine Quick'n Dirty-Adaption meiner für den [RaspberryPi](https://github.com/xSnowHeadx/word-clock) geschriebenen Software mit Reduktion auf die nackten WordClock-Funktionen. Sie wird (wenn mal Zeit ist) besser strukturiert, der Web-Server überarbeitet und evtl. der Moodlight-Modus wieder mit eingebaut.
+Die Software ist eine Quick'n Dirty-Adaption meiner für den [RaspberryPi](https://github.com/xSnowHeadx/word-clock) geschriebenen Software natürlich ohne Audio-Funktionen. Sie wird (wenn mal Zeit ist) besser strukturiert und der Web-Server überarbeitet.
 
 ## Hardware Setup
 
@@ -54,7 +54,7 @@ Die Steuerung von WordClock_ESP8266 über Webinterface funktioniert von jedem be
 *Modus setzen:*  
 `http://clockip?MODE=n`
 
-"n" = 0 bedeutet ostdeutsches Anzeigeformat (zehn vor halb Vier), "n" = 1 westdeutsches Anzeigeformat (zwanzig nach Drei)
+"n" = 0 bedeutet ostdeutsches Anzeigeformat (zehn vor halb Vier), "n" = 1 westdeutsches Anzeigeformat (zwanzig nach Drei), "n" = 2 startet das diagonale Moodlight, "n" = 3 das flächige Moodlight
 
 *Anzeige von "etwa" steuern:*  
 `http://clockip?PREC_ETWA=on`
