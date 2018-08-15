@@ -12,8 +12,7 @@ Die Software ist eine Quick'n Dirty-Adaption meiner für den [RaspberryPi](https
 Für den Aufbau der Word-Clock werden folgende Komponenten benötigt:
 
 - [ESP8266 NodeMCU](https://www.aliexpress.com/item/1PCS-ESP8266-NodeMCU-V3-Lua-WIFI-module-memory-32M-Flash-USB-serial-CH340G/32820380705.html)
-- [WS2811 RGB LED Strip](http://www.ebay.de/itm/WS2812B-LED-Stripe-4m-RGB-60-LEDs-m-Klebestreifen-WS2811-WS2812-/251901768682?pt=LH_DefaultDomain_77&hash=item3aa683f3ea): Die Gehäuseteile sind für die Verwendung dieser LED ausgelegt. Man benötigt einen Pegelwandler von den 3,3V des Raspi auf die 5V der LED. 
-- alternativ [LPD8806 RGB LED Strip](http://www.watterott.com/de/Digital-Addressable-RGB-LED), APA10x bzw. WS280x: Dann muß aber ein eigenes Gehäuse verwendet werden.
+- [WS2811 RGB LED Strip](http://www.ebay.de/itm/WS2812B-LED-Stripe-4m-RGB-60-LEDs-m-Klebestreifen-WS2811-WS2812-/251901768682?pt=LH_DefaultDomain_77&hash=item3aa683f3ea): Die Gehäuseteile sind für die Verwendung dieser LED ausgelegt. Bei bestimmten LED-Typen benötigt man einen Pegelwandler von den 3,3V des ESP8266 auf die 5V der LED. 
 - optional [ESP8266-Gehäuse](https://www.thingiverse.com/thing:2842012)
 - 1 [5V-Netzteil](http://www.amazon.de/gp/product/B004S7U4IO)
 - diverse Kabel, Lötwerkzeug
