@@ -610,7 +610,7 @@ void update_outputs(void)
 	else
 	{
 		update_moodlight();
-		delay(50);
+		delay(100);
 	}
 
 	FastLED.show();

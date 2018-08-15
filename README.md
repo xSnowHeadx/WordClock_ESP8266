@@ -26,7 +26,7 @@ Die Spannungsversorgung sollte allerdings nicht vom USB-Port aus, sondern durch 
 
 # Software
 
-Das Projekt besteht nur aus einer einzigen "ino"-Datei, welche nach Einbindung der erforderlichen Bibliotheken mit jeder Arduino-tauglichen Entwicklungsumgebungh gebaut und geflasht werden kann.
+Das Projekt besteht nur aus einer einzigen "ino"-Datei, welche nach Einbindung der erforderlichen Bibliotheken mit jeder Arduino-tauglichen Entwicklungsumgebung gebaut und geflasht werden kann.
 
 ##### Standard libraries
 * DNSServer
