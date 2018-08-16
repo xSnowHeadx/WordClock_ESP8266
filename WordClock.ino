@@ -29,25 +29,29 @@ extern "C"
 #include <platforms.h>
 #include <power_mgt.h>
 
-//needed for library
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>          // https://github.com/tzapu/WiFiManager
 #include <NTPClient.h>			  // https://github.com/arduino-libraries/NTPClient
 #include <Timezone.h>    		  // https://github.com/JChristensen/Timezone
 
-#define FPM_SLEEP_MAX_TIME 0xFFFFFFF
 
-#define NUM_LEDS 121
-#define DATA_PIN 14
+#define DATA_PIN 	 14
+
+#define NUM_LEDS 	121
+#define NUM_ROWS	 11
+#define NUM_COLS	 11
 #define COLOR_ORDER RGB
 #define EEPROM_SIZE 128
 
-#define MIN(x,y)              ((x) > (y)) ? (y) : (x)
-#define MAX(x,y)              ((x) > (y)) ? (x) : (y)
+#define FPM_SLEEP_MAX_TIME 0xFFFFFFF
+#ifndef MIN
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef MAX
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#endif
 #define CONSTRAIN(a, l, r)    (MIN(MAX((l), (a)), (r)))
-#define NUM_ROWS	11
-#define NUM_COLS	11
 
 // configure your timezone rules here how described on https://github.com/JChristensen/Timezone
 TimeChangeRule myDST =
@@ -62,7 +66,7 @@ static const char twords[][12] =
 		"Zwanzig", "vor", "nach", "um", "viertel", "halb", "dreiviertel", "Fuenf", "Zehn", "Es", "ist", "etwa", "genau",
 		"Uhr" };
 
-// word indices
+// time-word indices
 enum
 {
 	_NULL_,
@@ -123,8 +127,8 @@ enum
 // word positions by led numbers {from, to}
 static const int tleds[][2] =
 {
-{ 0, 0 },
-{ 46, 49 }, 	// EINS
+		{ 0, 0 },		// placeholder
+		{ 46, 49 }, 	// EINS
 		{ 44, 47 }, 	// ZWEI
 		{ 39, 42 }, 	// DREI
 		{ 29, 32 }, 	// VIER
@@ -182,6 +186,7 @@ static const int CALC[2][12][4] =
 { _ZEHN_M_, _VOR_, 0, 1 },
 { _FUENF_M_, _VOR_, 0, 1 } } };
 
+// structure holds the parameters to save nonvolatile
 typedef struct
 {
 	int mode;
@@ -191,22 +196,27 @@ typedef struct
 	unsigned char brightness;
 	unsigned char valid;
 } wordclock_word_processor_struct;
-
-float mood_offset = 0.0, mood_step = 0.002;
-
 wordclock_word_processor_struct wordclock_word_processor;
 wordclock_word_processor_struct *wordp = &wordclock_word_processor;
 
+// float parameters for moodlight-mode
+float mood_offset = 0.0, mood_step = 0.002;
+
+// counter for time-measurement
+static unsigned long amicros, umicros = 0;
+
+// LED-array for transfer to fastled
 CRGB leds[NUM_LEDS];
 
+// WiFi-objects
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 WiFiManager wifiManager;
 
-void update_outputs(void);
-
+// the web-server-object
 ESP8266WebServer server(80);   //instantiate server at port 80 (http port)
 
+// string to hold the last displayed word-sequence
 char tstr2[128] = "";
 
 // own fmod() because of issue in the libm.a ( see https://github.com/esp8266/Arduino/issues/612 )
@@ -221,6 +231,7 @@ float xfmod(float numer, float denom)
 	return numer - (ileft * denom);
 }
 
+// dynamic generation of the web-servers response
 void page_out(void)
 {
 	server.sendContent(
@@ -266,6 +277,7 @@ void page_out(void)
 			"\"> %</td></tr></tbody></table><br><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><input name=\"SEND\" value=\"  Senden  \" type=\"submit\"></td></tr></tbody></table></form><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><form method=\"get\"><input name=\"SAVE\" value=\"Speichern\" type=\"submit\"></form></td></tr></tbody></table></body></html>");
 }
 
+// conversion from hsl- to RGB-color-scheme
 void hsl_to_rgb(int hue, int sat, int lum, int* r, int* g, int* b)
 {
 	int v;
@@ -324,6 +336,7 @@ void hsl_to_rgb(int hue, int sat, int lum, int* r, int* g, int* b)
 	}
 }
 
+// find x/y-position of a given LED-index on the screen
 int map_output_to_point(int output, int width, int height, int* x, int* y)
 {
 	int ret = -1, px, py;
@@ -347,6 +360,7 @@ int map_output_to_point(int output, int width, int height, int* x, int* y)
 	return ret;
 }
 
+// generate next moodlight-color
 void update_moodlight(void)
 {
 	int i;
@@ -356,7 +370,7 @@ void update_moodlight(void)
 	switch (wordp->mode)
 	{
 
-	case 2:
+	case 2:	// diagonal moddlight
 	{
 		for (i = 0; i < NUM_LEDS; i++)
 		{
@@ -376,7 +390,7 @@ void update_moodlight(void)
 	}
 		break;
 
-	case 3:
+	case 3:	// fullscreen-moodlight
 	{
 		for (i = 0; i < NUM_LEDS; i++)
 		{
@@ -391,9 +405,10 @@ void update_moodlight(void)
 	}
 }
 
+// system initalization
 void setup()
 {
-	int i;
+	unsigned int i;
 	unsigned char *eptr;
 
 	pinMode(BUILTIN_LED, OUTPUT);   // Initialize the BUILTIN_LED pin as an output
@@ -402,14 +417,18 @@ void setup()
 
 	wifiManager.setTimeout(180);
 
+	// initialize FastLED, all LEDs off
 	FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
 	memset(leds, 0, NUM_LEDS);
 	FastLED.show();
 
+	// read stored parameters
 	EEPROM.begin(EEPROM_SIZE);
 	eptr = (unsigned char*) wordp;
 	for (i = 0; i < sizeof(wordclock_word_processor_struct); i++)
 		*(eptr++) = EEPROM.read(i);
+
+	// EEPROM-parameters invalid, use default-values and store them
 	if (wordp->valid != 0xA5)
 	{
 		wordp->mode = 0;
@@ -420,17 +439,17 @@ void setup()
 		wordp->b = 100;
 		wordp->brightness = 80;
 		wordp->valid = 0xA5;
+
+		eptr = (unsigned char*) wordp;
+		for (i = 0; i < sizeof(wordclock_word_processor_struct); i++)
+			EEPROM.write(i, *(eptr++));
+		EEPROM.commit();
 	}
-	eptr = (unsigned char*) wordp;
-	for (i = 0; i < sizeof(wordclock_word_processor_struct); i++)
-		EEPROM.write(i, *(eptr++));
-	EEPROM.commit();
 
 	//fetches ssid and pass and tries to connect
 	//if it does not connect it starts an access point with the specified name
 	//here  "NixieAP"
 	//and goes into a blocking loop awaiting configuration
-
 	if (!wifiManager.autoConnect("WordClockAP"))
 	{
 		Serial.println("failed to connect and hit timeout");
@@ -440,16 +459,21 @@ void setup()
 		delay(5000);
 	}
 
-	//if you get here you have connected to the WiFi
+	// if you get here you have connected to the WiFi
 	Serial.println("connected...yeey :)");
 
+	// get time from internet
 	timeClient.update();
 
+	// parsing function for the commands of the web-server
 	server.on("/", []()
 	{
+		int i;
+		unsigned int j;
+
 		if(server.args())
 		{
-			for(int i = 0; i < server.args(); i++)
+			for(i = 0; i < server.args(); i++)
 			{
 				if(server.argName(i) == "SEND")
 				{
@@ -457,14 +481,14 @@ void setup()
 					wordp->trailer = 0;
 				}
 			}
-			for(int i = 0; i < server.args(); i++)
+			for(i = 0; i < server.args(); i++)
 			{
 				if(server.argName(i) == "SAVE")
 				{
 					unsigned char *eptr = (unsigned char*)wordp;
 
-					for(int i = 0; i < sizeof(wordclock_word_processor_struct); i++)
-					EEPROM.write(i, *(eptr++));
+					for(j = 0; j < sizeof(wordclock_word_processor_struct); j++)
+						EEPROM.write(j, *(eptr++));
 					EEPROM.commit();
 				}
 				else if(server.argName(i) == "MODE")
@@ -522,20 +546,20 @@ void setup()
 		}
 		page_out();
 	});
+	// start web-server
 	server.begin();
 	Serial.println("Web server started!");
 }
 
-static unsigned long amicros, umicros = 0;
 
 void update_outputs(void)
 {
 	char tstr[128] = "";
-	unsigned int i, j, emin, min, hr;
+	int i, j, emin, min, hr;
 	time_t rawtime, loctime, atime;
 	int lvals[10];
 
-	if (wordp->mode < 2)
+	if (wordp->mode < 2)								// wordclock-mode
 	{
 		if (timeClient.update())						// NTP-update
 		{
@@ -545,9 +569,9 @@ void update_outputs(void)
 
 			emin = minute(loctime);
 			rawtime += 150;
-			atime = myTZ.toLocal(rawtime);			// calc local time
+			atime = myTZ.toLocal(rawtime);				// calc local time
 
-			min = minute(atime) / 5;
+			min = minute(atime) / 5;					// get minutes-index
 			hr = (hour(atime) + CALC[wordp->mode][min][3]) % 12;
 			if (!hr)
 				hr = 12;
@@ -577,12 +601,14 @@ void update_outputs(void)
 				lvals[j++] = _UHR_;
 			lvals[j] = 0;
 
-			//			if ((!second(loctime)) || firstrun)			// full minute or first cycle
-
+			// generate color-structure for wished display-color
 			CRGB actcolor = CRGB(((int) wordp->r * (int) wordp->brightness) / 40,
 					((int) wordp->g * (int) wordp->brightness) / 40, ((int) wordp->b * (int) wordp->brightness) / 40);
 
+			// clear LED-buffer
 			memset(leds, 0, sizeof(leds));
+
+			// create LED-field and text-string corresponding to time
 			*tstr = 0;
 			for (i = 0; lvals[i]; i++)
 			{
@@ -592,6 +618,8 @@ void update_outputs(void)
 				}
 				sprintf(tstr + strlen(tstr), "%s ", twords[lvals[i]]);
 			}
+
+			// time-string changed since last loop?
 			if (strcmp(tstr, tstr2))
 			{
 				digitalWrite(BUILTIN_LED, HIGH);		// blink for sync
@@ -607,13 +635,13 @@ void update_outputs(void)
 		}
 		delay(150);
 	}
-	else
+	else												// moodlight-mode
 	{
 		update_moodlight();
 		delay(100);
 	}
 
-	FastLED.show();
+	FastLED.show();										// update LEDs
 }
 
 void loop()
@@ -622,9 +650,9 @@ void loop()
 	{
 		amicros = micros();
 		update_outputs();
-		server.handleClient();
+		server.handleClient();							// handle HTTP-requests
 		if (((amicros - umicros) / 1000000L) > 3600)	// if no sync for more than one hour
-			digitalWrite(BUILTIN_LED, HIGH);			// switch off LED
+			digitalWrite(BUILTIN_LED, HIGH);			// switch off BUILTIN_LED
 	}
 }
 
