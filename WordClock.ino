@@ -35,14 +35,25 @@ extern "C"
 #include <NTPClient.h>			  // https://github.com/arduino-libraries/NTPClient
 #include <Timezone.h>    		  // https://github.com/JChristensen/Timezone
 
+// begin of individual settings
 
-#define DATA_PIN 	 14
+#define DATA_PIN 	 14			  // output-pin for LED-data (current D5)
+#define COLOR_ORDER RGB			  // byte order in the LEDs data-stream, adapt to your LED-type
 
-#define NUM_LEDS 	121
+// configure your timezone rules here how described on https://github.com/JChristensen/Timezone
+TimeChangeRule myDST =
+{ "CEST", Last, Sun, Mar, 2, +120 };    //Daylight time = UTC + 2 hours
+TimeChangeRule mySTD =
+{ "CET", Last, Sun, Oct, 2, +60 };      //Standard time = UTC + 1 hours
+Timezone myTZ(myDST, mySTD);
+
+// end of individual settings
+
+#define NUM_LEDS 	121			  // 11x11 LED, don't change
 #define NUM_ROWS	 11
 #define NUM_COLS	 11
-#define COLOR_ORDER RGB
-#define EEPROM_SIZE 128
+
+#define EEPROM_SIZE 128			  // size of NV-memory
 
 #define FPM_SLEEP_MAX_TIME 0xFFFFFFF
 #ifndef MIN
@@ -52,13 +63,6 @@ extern "C"
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #endif
 #define CONSTRAIN(a, l, r)    (MIN(MAX((l), (a)), (r)))
-
-// configure your timezone rules here how described on https://github.com/JChristensen/Timezone
-TimeChangeRule myDST =
-{ "CEST", Last, Sun, Mar, 2, +120 };    //Daylight time = UTC + 2 hours
-TimeChangeRule mySTD =
-{ "CET", Last, Sun, Oct, 2, +60 };      //Standard time = UTC + 1 hours
-Timezone myTZ(myDST, mySTD);
 
 // words for log output
 static const char twords[][12] =
@@ -205,7 +209,7 @@ float mood_offset = 0.0, mood_step = 0.002;
 // counter for time-measurement
 static unsigned long amicros, umicros = 0;
 
-// LED-array for transfer to fastled
+// LED-array for transfer to FastLED
 CRGB leds[NUM_LEDS];
 
 // WiFi-objects
@@ -336,7 +340,7 @@ void hsl_to_rgb(int hue, int sat, int lum, int* r, int* g, int* b)
 	}
 }
 
-// find x/y-position of a given LED-index on the screen
+// find x/y-position on the screen of a given LED-index
 int map_output_to_point(int output, int width, int height, int* x, int* y)
 {
 	int ret = -1, px, py;
@@ -370,20 +374,24 @@ void update_moodlight(void)
 	switch (wordp->mode)
 	{
 
-	case 2:	// diagonal moddlight
+	case 2:	// diagonal moodlight
 	{
 		for (i = 0; i < NUM_LEDS; i++)
 		{
 			int x, y, r, g, b;
 			float f;
 
+			// get x/y-position of this LED-index
 			map_output_to_point(i, 1024, 1024, &x, &y);
 
+			// calculate color for this position
 			f = CONSTRAIN((x / 1024.0 + y / 1024.0) / 2.0, 0.0, 1.0);
 			f = xfmod(f + mood_offset, 1.0);
 
+			// convert calculated hsl-color to RGB
 			hsl_to_rgb(255 * f, 255, 128, &r, &g, &b);
 
+			// set color in wished brightness
 			leds[i] = CRGB((r * (int) wordp->brightness) / 100, (g * (int) wordp->brightness) / 100,
 					(b * (int) wordp->brightness) / 100);
 		}
@@ -392,10 +400,18 @@ void update_moodlight(void)
 
 	case 3:	// fullscreen-moodlight
 	{
+		int r, g, b;
+
+		// calulate color for this loop
+		hsl_to_rgb(255 * mood_offset, 255, 128, &r, &g, &b);
+
+		// generate color-structure for wished display-color
+		CRGB actcolor = CRGB(((int) wordp->r * (int) wordp->brightness) / 40,
+				((int) wordp->g * (int) wordp->brightness) / 40, ((int) wordp->b * (int) wordp->brightness) / 40);
+
+		// fill LED-field with calculated color
 		for (i = 0; i < NUM_LEDS; i++)
 		{
-			int r, g, b;
-			hsl_to_rgb(255 * mood_offset, 255, 128, &r, &g, &b);
 			leds[i] = CRGB((r * (int) wordp->brightness) / 100, (g * (int) wordp->brightness) / 100,
 					(b * (int) wordp->brightness) / 100);
 		}
@@ -572,23 +588,25 @@ void update_outputs(void)
 			atime = myTZ.toLocal(rawtime);				// calc local time
 
 			min = minute(atime) / 5;					// get minutes-index
-			hr = (hour(atime) + CALC[wordp->mode][min][3]) % 12;
+			hr = (hour(atime) + CALC[wordp->mode][min][3]) % 12; // get hours-index
 			if (!hr)
 				hr = 12;
 
 			j = 0;
-			lvals[j++] = _ES_;
+			lvals[j++] = _ES_;							// first two words
 			lvals[j++] = _IST_;
-			if (emin % 5)
+			if (emin % 5)								// minutes are not a multiple of 5?
 			{
-				if (wordp->precise & 0x02)
+				if (wordp->precise & 0x02)				// add "ETWA" if activated
 					lvals[j++] = _ETWA_;
 			}
-			else
+			else										// minutes are a multiple of 5?
 			{
-				if (wordp->precise & 0x01)
+				if (wordp->precise & 0x01)				// add "GENAU" if activated
 					lvals[j++] = _GENAU_;
 			}
+
+			// generate word indices according to minutes
 			for (i = 0; i < 3; i++)
 			{
 				if (CALC[wordp->mode][min][i])
@@ -596,10 +614,15 @@ void update_outputs(void)
 					lvals[j++] = CALC[wordp->mode][min][i];
 				}
 			}
+
+			// generate word index according to hour if trailer is activated use "EIN" instead of "EINS"
 			lvals[j++] = (hr == 1) ? ((wordp->trailer) ? _EIN_ : _EINS_) : hr;
+
+			//  add idex for "UHR" if trailer is activated
 			if (wordp->trailer)
 				lvals[j++] = _UHR_;
-			lvals[j] = 0;
+
+			lvals[j] = 0;								// end of words chain
 
 			// generate color-structure for wished display-color
 			CRGB actcolor = CRGB(((int) wordp->r * (int) wordp->brightness) / 40,
@@ -608,7 +631,7 @@ void update_outputs(void)
 			// clear LED-buffer
 			memset(leds, 0, sizeof(leds));
 
-			// create LED-field and text-string corresponding to time
+			// create LED-field and text-string according to calculated word-indices
 			*tstr = 0;
 			for (i = 0; lvals[i]; i++)
 			{
