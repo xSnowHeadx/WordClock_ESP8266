@@ -46,9 +46,10 @@ Das Projekt besteht nur aus einer einzigen "ino"-Datei, welche nach Einbindung d
 
 ## Web-Interface
 
-Damit auf den ESP8266 zugegriffen werden kann, muß sich dieser im WLAN anmelden können. Das erledigt der WiFi-Manager, dessen Konfiguration auf desses [Seite](https://github.com/tzapu/WiFiManager#how-it-works) beschrieben ist.
+Damit auf den ESP8266 zugegriffen werden kann, muß sich dieser im WLAN anmelden können. Das erledigt der WiFi-Manager, dessen Konfiguration auf [dessen Seite](https://github.com/tzapu/WiFiManager#how-it-works) beschrieben ist.
 
 Die Steuerung von WordClock_ESP8266 über Webinterface funktioniert von jedem beliebigen Gerät mit Web-Client (Browser, wget, curl o.Ä.) aus. Hier eine Beschreibung der Befehle und Parameter für das Webinterface (statt "clockip" die IP des des ESP8266 (auslesbar am Router oder über die serielle Konsole) und statt "color" die gewünschten Farben "RED", "GREEN" oder "BLUE" verwenden. "n" wird durch die gewünschten Ziffern ersetzt. "on" schaltet eine Option ein, "off" schaltet sie aus.
+Wird hinter dem "=" kein Parameter angegeben, wird statt der aktualisierten Website der Wert des entsprechenden Parameters als Plaintext mit Zeilenumbruch am Ende zurückgegeben. Also "http://clockip/?BRIGHT=" liefert z.B. "BRIGHT=100". Diese Antwort kann dann mit Scripten ausgwertet werden, über welche auch eine Steuerung der Uhr erfolgen kann.
 
 *Modus setzen:*  
 `http://clockip?MODE=n`
@@ -79,7 +80,7 @@ Bei "on" wird am Ende der Textanzeige "Uhr" mit angezeigt, bei "off" nicht
 Nicht vergessen: statt "color" die Farben "RED", "GREEN" oder "BLUE" einsetzen.
 
 *Einstellungen speichern*  
-`http://clockip?STORE`
+`http://clockip?SAVE=`
 
 Die vorher getätigten Einstellungen werden im EEPROM abgespeichert und beim nächsten Einschalten wieder verwendet.
 

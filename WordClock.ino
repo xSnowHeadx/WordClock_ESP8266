@@ -35,6 +35,8 @@ extern "C"
 #include <NTPClient.h>			  // https://github.com/arduino-libraries/NTPClient
 #include <Timezone.h>    		  // https://github.com/JChristensen/Timezone
 
+#include <errno.h>
+
 // begin of individual settings
 
 #define DATA_PIN 	 14			  // output-pin for LED-data (current D5)
@@ -131,64 +133,67 @@ enum
 // word positions by led numbers {from, to}
 static const int tleds[][2] =
 {
-		{ 0, 0 },		// placeholder
-		{ 46, 49 }, 	// EINS
-		{ 44, 47 }, 	// ZWEI
-		{ 39, 42 }, 	// DREI
-		{ 29, 32 }, 	// VIER
-		{ 33, 36 },		// FUENF
-		{ 1, 5 },		// SECHS
-		{ 49, 54 },		// SIEBEN
-		{ 17, 20 },		// ACHT
-		{ 25, 28 },		// NEUN
-		{ 13, 16 },		// ZEHN
-		{ 22, 24 },		// ELF
-		{ 56, 60 },		// ZWOELF
-		{ 46, 48 },		// EIN
-		{ 92, 98 },		// ZWANZIG_M
-		{ 72, 74 },		// VOR
-		{ 68, 71 },		// NACH
-		{ 75, 76 },		// UM
-		{ 77, 83 },		// VIERTEL
-		{ 62, 65 },		// HALB
-		{ 77, 87 },		// DREIVIERTEL
-		{ 99, 102 },	// FUENF_M
-		{ 88, 91 },		// ZEHN_M
+		{   0,   0 },	// placeholder
+		{  46,  49 }, 	// EINS
+		{  44,  47 }, 	// ZWEI
+		{  39,  42 }, 	// DREI
+		{  29,  32 }, 	// VIER
+		{  33,  36 },	// FUENF
+		{   1,   5 },	// SECHS
+		{  49,  54 },	// SIEBEN
+		{  17,  20 },	// ACHT
+		{  25,  28 },	// NEUN
+		{  13,  16 },	// ZEHN
+		{  22,  24 },	// ELF
+		{  56,  60 },	// ZWOELF
+		{  46,  48 },	// EIN
+		{  92,  98 },	// ZWANZIG_M
+		{  72,  74 },	// VOR
+		{  68,  71 },	// NACH
+		{  75,  76 },	// UM
+		{  77,  83 },	// VIERTEL
+		{  62,  65 },	// HALB
+		{  77,  87 },	// DREIVIERTEL
+		{  99, 102 },	// FUENF_M
+		{  88,  91 },	// ZEHN_M
 		{ 110, 111 },	// ES
 		{ 113, 115 },	// IST
 		{ 117, 120 },	// ETWA
 		{ 104, 108 },	// GENAU
-		{ 8, 10 } };		// UHR
+		{   8,  10 } };	// UHR
 
 // translation from minutes to word expressions (east and west german)
 static const int CALC[2][12][4] =
+// first word	second word third word		use following hours word
 {
-{
-{ 0, 0, _UM_, 0 },
-{ _FUENF_M_, _NACH_, 0, 0 },
-{ _ZEHN_M_, _NACH_, 0, 0 },
-{ 0, 0, _VIERTEL_, 1 },
-{ _ZEHN_M_, _VOR_, _HALB_, 1 },
-{ _FUENF_M_, _VOR_, _HALB_, 1 },
-{ 0, 0, _HALB_, 1 },
-{ _FUENF_M_, _NACH_, _HALB_, 1 },
-{ _ZEHN_M_, _NACH_, _HALB_, 1 },
-{ 0, 0, _DREIVIERTEL_, 1 },
-{ _ZEHN_M_, _VOR_, 0, 1 },
-{ _FUENF_M_, _VOR_, 0, 1 } },
-{
-{ 0, 0, _UM_, 0 },
-{ _FUENF_M_, _NACH_, 0, 0 },
-{ _ZEHN_M_, _NACH_, 0, 0 },
-{ _VIERTEL_, _NACH_, 0, 0 },
-{ _ZWANZIG_M_, _NACH_, 0, 0 },
-{ _FUENF_M_, _VOR_, _HALB_, 1 },
-{ 0, 0, _HALB_, 1 },
-{ _FUENF_M_, _NACH_, _HALB_, 1 },
-{ _ZWANZIG_M_, _VOR_, 0, 1 },
-{ _VIERTEL_, _VOR_, 0, 1 },
-{ _ZEHN_M_, _VOR_, 0, 1 },
-{ _FUENF_M_, _VOR_, 0, 1 } } };
+{// east german
+{ 0, 			0,			_UM_, 			0 },
+{ _FUENF_M_,	 _NACH_, 	0, 				0 },
+{ _ZEHN_M_, 	_NACH_, 	0, 				0 },
+{ 0, 			0, 			_VIERTEL_, 		1 },
+{ _ZEHN_M_, 	_VOR_, 		_HALB_, 		1 },
+{ _FUENF_M_, 	_VOR_, 		_HALB_, 		1 },
+{ 0, 			0, 			_HALB_, 		1 },
+{ _FUENF_M_, 	_NACH_, 	_HALB_, 		1 },
+{ _ZEHN_M_, 	_NACH_, 	_HALB_, 		1 },
+{ 0, 			0, 			_DREIVIERTEL_, 	1 },
+{ _ZEHN_M_, 	_VOR_, 		0, 				1 },
+{ _FUENF_M_,	_VOR_, 		0, 				1 } },
+{// west german
+{ 0, 			0, 			_UM_, 			0 },
+{ _FUENF_M_, 	_NACH_, 	0, 				0 },
+{ _ZEHN_M_, 	_NACH_, 	0, 				0 },
+{ _VIERTEL_,	_NACH_, 	0, 				0 },
+{ _ZWANZIG_M_,	_NACH_, 	0, 				0 },
+{ _FUENF_M_, 	_VOR_, 		_HALB_, 		1 },
+{ 0, 			0, 			_HALB_, 		1 },
+{ _FUENF_M_, 	_NACH_, 	_HALB_, 		1 },
+{ _ZWANZIG_M_, 	_VOR_, 		0, 				1 },
+{ _VIERTEL_, 	_VOR_, 		0, 				1 },
+{ _ZEHN_M_, 	_VOR_, 		0, 				1 },
+{ _FUENF_M_, 	_VOR_, 		0, 				1 }
+}
+};
 
 // structure holds the parameters to save nonvolatile
 typedef struct
@@ -208,6 +213,8 @@ float mood_offset = 0.0, mood_step = 0.002;
 
 // counter for time-measurement
 static unsigned long amicros, umicros = 0;
+
+char outstr[512] = "";
 
 // LED-array for transfer to FastLED
 CRGB leds[NUM_LEDS];
@@ -238,47 +245,55 @@ float xfmod(float numer, float denom)
 // dynamic generation of the web-servers response
 void page_out(void)
 {
-	server.sendContent(
-			"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\"><html><head><meta http-equiv=\"content-type\"content=\"text/html; charset=ISO-8859-1\"><title>ESP8266_WordClock_Server</title></head><body><h1 style=\"text-align: center; width: 504px;\" align=\"left\"><span style=\"color: rgb(0, 0, 153); font-weight: bold;\">ESP8266 WordClock-Server</span></h1><h3 style=\"text-align: center; width: 504px;\" align=\"left\"><span style=\"color: rgb(0, 0, 0); font-weight: bold;\">");
-	server.sendContent(tstr2);
-	server.sendContent(
-			"</span></h3><form method=\"get\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"144\" width=\"457\"><tbody><tr><td width=\"120\"><b><big>Anzeigemodus</big></b></td><td width=\"50\"></td><td><select name=\"MODE\"><option value=\"0\"");
-	if (wordp->mode == 0)
-		server.sendContent(" selected");
-	server.sendContent(">Clock Ostdeutsch</option><option value=\"1\"");
-	if (wordp->mode == 1)
-		server.sendContent(" selected");
-	server.sendContent(">Clock Westdeutsch</option><option value=\"2\"");
-	if (wordp->mode == 2)
-		server.sendContent(" selected");
-	server.sendContent(">Moodlight diagonal</option><option value=\"3\"");
-	if (wordp->mode == 3)
-		server.sendContent(" selected");
-	server.sendContent(
-			">Moodlight fl&#228;chig</option></select></td></tr><tr><td><b><big>Pr&#228;zision</big></b></td><td></td><td><input name=\"PREC_ETWA\" type=\"Checkbox\" mode=\"submit\"");
-	if (wordp->precise & 0x02)
-		server.sendContent(" checked");
-	server.sendContent("> etwa <input name=\"PREC_GENAU\" type=\"Checkbox\" mode=\"submit\"");
-	if (wordp->precise & 0x01)
-		server.sendContent(" checked");
-	server.sendContent(
-			"> genau </td></tr><tr><td><b><big>Trailer</big></b></td><td></td> <td><input name=\"TRAILER\" type=\"Checkbox\" mode=\"submit\"");
-	if (wordp->trailer)
-		server.sendContent(" checked");
-	server.sendContent(
-			"> Uhr</td></tr><tr><td height=\"30\"></td><td></td><td></td></tr><tr><td><b><big>Helligkeit</big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"BRIGHT\" value=\"");
-	server.sendContent(String(wordp->brightness));
-	server.sendContent(
-			"\"> %</td></tr><tr><td><b><big><font color=\"#cc0000\">Rot</font></big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"RED\" value=\"");
-	server.sendContent(String(wordp->r));
-	server.sendContent(
-			"\"> %</td></tr><tr><td><b><big><font color=\"#006600\">Gr&#252;n</font></big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"GREEN\" value=\"");
-	server.sendContent(String(wordp->g));
-	server.sendContent(
-			"\"> %</td></tr><tr><td><b><big><font color=\"#000099\">Blau</font></big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"BLUE\" value=\"");
-	server.sendContent(String(wordp->b));
-	server.sendContent(
-			"\"> %</td></tr></tbody></table><br><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><input name=\"SEND\" value=\"  Senden  \" type=\"submit\"></td></tr></tbody></table></form><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><form method=\"get\"><input name=\"SAVE\" value=\"Speichern\" type=\"submit\"></form></td></tr></tbody></table></body></html>");
+	if(strlen(outstr))
+	{
+		server.sendContent(outstr);
+		*outstr = 0;
+	}
+	else
+	{
+		server.sendContent(
+				"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\"><html><head><meta http-equiv=\"content-type\"content=\"text/html; charset=ISO-8859-1\"><title>ESP8266_WordClock_Server</title></head>\r\n<body><h1 style=\"text-align: center; width: 504px;\" align=\"left\"><span style=\"color: rgb(0, 0, 153); font-weight: bold;\">ESP8266 WordClock-Server</span></h1><h3 style=\"text-align: center; width: 504px;\" align=\"left\"><span style=\"color: rgb(0, 0, 0); font-weight: bold;\">");
+		server.sendContent(tstr2);
+		server.sendContent(
+				"</span></h3><form method=\"get\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"144\" width=\"457\"><tbody><tr><td width=\"120\"><b><big>Anzeigemodus</big></b></td><td width=\"50\"></td><td><select name=\"MODE\"><option value=\"0\"");
+		if (wordp->mode == 0)
+			server.sendContent(" selected");
+		server.sendContent(">Clock Ostdeutsch</option><option value=\"1\"");
+		if (wordp->mode == 1)
+			server.sendContent(" selected");
+		server.sendContent(">Clock Westdeutsch</option><option value=\"2\"");
+		if (wordp->mode == 2)
+			server.sendContent(" selected");
+		server.sendContent(">Moodlight diagonal</option><option value=\"3\"");
+		if (wordp->mode == 3)
+			server.sendContent(" selected");
+		server.sendContent(
+				">Moodlight fl&#228;chig</option></select></td></tr><tr><td><b><big>Pr&#228;zision</big></b></td><td></td><td><input name=\"PREC_ETWA\" type=\"Checkbox\" mode=\"submit\"");
+		if (wordp->precise & 0x02)
+			server.sendContent(" checked");
+		server.sendContent("> etwa <input name=\"PREC_GENAU\" type=\"Checkbox\" mode=\"submit\"");
+		if (wordp->precise & 0x01)
+			server.sendContent(" checked");
+		server.sendContent(
+				"> genau </td></tr><tr><td><b><big>Trailer</big></b></td><td></td> <td><input name=\"TRAILER\" type=\"Checkbox\" mode=\"submit\"");
+		if (wordp->trailer)
+			server.sendContent(" checked");
+		server.sendContent(
+				"> Uhr</td></tr><tr><td height=\"30\"></td><td></td><td></td></tr><tr><td><b><big>Helligkeit</big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"BRIGHT\" value=\"");
+		server.sendContent(String(wordp->brightness));
+		server.sendContent(
+				"\"> %</td></tr><tr><td><b><big><font color=\"#cc0000\">Rot</font></big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"RED\" value=\"");
+		server.sendContent(String(wordp->r));
+		server.sendContent(
+				"\"> %</td></tr><tr><td><b><big><font color=\"#006600\">Gr&#252;n</font></big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"GREEN\" value=\"");
+		server.sendContent(String(wordp->g));
+		server.sendContent(
+				"\"> %</td></tr><tr><td><b><big><font color=\"#000099\">Blau</font></big></b></td><td></td><td><input maxlength=\"3\" size=\"3\" name=\"BLUE\" value=\"");
+		server.sendContent(String(wordp->b));
+		server.sendContent(
+				"\"> %</td></tr></tbody></table><br><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><input name=\"SEND\" value=\"  Senden  \" type=\"submit\"></td></tr></tbody></table></form><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" height=\"30\" width=\"99\"><tbody><tr><td><form method=\"get\"><input name=\"SAVE\" value=\"Speichern\" type=\"submit\"></form></td></tr></tbody></table></body></html>\r\n");
+	}
 }
 
 // conversion from hsl- to RGB-color-scheme
@@ -373,51 +388,48 @@ void update_moodlight(void)
 
 	switch (wordp->mode)
 	{
-
-	case 2:	// diagonal moodlight
-	{
-		for (i = 0; i < NUM_LEDS; i++)
+		case 2:	// diagonal moodlight
 		{
-			int x, y, r, g, b;
-			float f;
+			for (i = 0; i < NUM_LEDS; i++)
+			{
+				int x, y, r, g, b;
+				float f;
 
-			// get x/y-position of this LED-index
-			map_output_to_point(i, 1024, 1024, &x, &y);
+				// get x/y-position of this LED-index
+				map_output_to_point(i, 1024, 1024, &x, &y);
 
-			// calculate color for this position
-			f = CONSTRAIN((x / 1024.0 + y / 1024.0) / 2.0, 0.0, 1.0);
-			f = xfmod(f + mood_offset, 1.0);
+				// calculate color for this position
+				f = CONSTRAIN((x / 1024.0 + y / 1024.0) / 2.0, 0.0, 1.0);
+				f = xfmod(f + mood_offset, 1.0);
 
-			// convert calculated hsl-color to RGB
-			hsl_to_rgb(255 * f, 255, 128, &r, &g, &b);
+				// convert calculated hsl-color to RGB
+				hsl_to_rgb(255 * f, 255, 128, &r, &g, &b);
 
-			// set color in wished brightness
-			leds[i] = CRGB((r * (int) wordp->brightness) / 100, (g * (int) wordp->brightness) / 100,
-					(b * (int) wordp->brightness) / 100);
+				// set color in wished brightness
+				leds[i] = CRGB((r * (int) wordp->brightness) / 100, (g * (int) wordp->brightness) / 100,
+						(b * (int) wordp->brightness) / 100);
+			}
 		}
-	}
 		break;
 
-	case 3:	// fullscreen-moodlight
-	{
-		int r, g, b;
-
-		// calulate color for this loop
-		hsl_to_rgb(255 * mood_offset, 255, 128, &r, &g, &b);
-
-		// generate color-structure for wished display-color
-		CRGB actcolor = CRGB(((int) wordp->r * (int) wordp->brightness) / 40,
-				((int) wordp->g * (int) wordp->brightness) / 40, ((int) wordp->b * (int) wordp->brightness) / 40);
-
-		// fill LED-field with calculated color
-		for (i = 0; i < NUM_LEDS; i++)
+		case 3:	// fullscreen-moodlight
 		{
-			leds[i] = CRGB((r * (int) wordp->brightness) / 100, (g * (int) wordp->brightness) / 100,
-					(b * (int) wordp->brightness) / 100);
-		}
-	}
-		break;
+			int r, g, b;
 
+			// calulate color for this loop
+			hsl_to_rgb(255 * mood_offset, 255, 128, &r, &g, &b);
+
+			// generate color-structure for wished display-color
+			CRGB actcolor = CRGB(((int) wordp->r * (int) wordp->brightness) / 40,
+					((int) wordp->g * (int) wordp->brightness) / 40, ((int) wordp->b * (int) wordp->brightness) / 40);
+
+			// fill LED-field with calculated color
+			for (i = 0; i < NUM_LEDS; i++)
+			{
+				leds[i] = actcolor;
+			}
+		}
+		break;
 	}
 }
 
@@ -486,6 +498,9 @@ void setup()
 	{
 		int i;
 		unsigned int j;
+		long pval;
+
+		*outstr = 0;
 
 		if(server.args())
 		{
@@ -495,10 +510,12 @@ void setup()
 				{
 					wordp->precise = 0;
 					wordp->trailer = 0;
+					*outstr = 0;
 				}
 			}
 			for(i = 0; i < server.args(); i++)
 			{
+				errno = 0;
 				if(server.argName(i) == "SAVE")
 				{
 					unsigned char *eptr = (unsigned char*)wordp;
@@ -506,55 +523,95 @@ void setup()
 					for(j = 0; j < sizeof(wordclock_word_processor_struct); j++)
 						EEPROM.write(j, *(eptr++));
 					EEPROM.commit();
+					if(!server.arg(i).length())
+						sprintf(outstr + strlen(outstr), "OK");
 				}
 				else if(server.argName(i) == "MODE")
 				{
-					wordp->mode = abs(atoi(server.arg(i).c_str()));
-					if(wordp->mode > 3)
-					wordp->mode = 3;
+					pval = strtol(server.arg(i).c_str(), NULL, 10);
+					if(server.arg(i).length() && !errno)
+					{
+						wordp->mode = pval;
+						if(wordp->mode > 3)
+							wordp->mode = 3;
+					}
+					else
+						sprintf(outstr + strlen(outstr), "MODE=%d\r\n", wordp->mode);
 				}
 				else if(server.argName(i) == "BRIGHT")
 				{
-					wordp->brightness = abs(atoi(server.arg(i).c_str()));
-					if(wordp->brightness > 100)
-					wordp->mode = 100;
+					pval = strtol(server.arg(i).c_str(), NULL, 10);
+					if(server.arg(i).length() && !errno)
+					{
+						wordp->brightness = pval;
+						if(wordp->brightness > 100)
+						wordp->brightness = 100;
+					}
+					else
+						sprintf(outstr + strlen(outstr), "BRIGHT=%d\r\n", wordp->brightness);
 				}
 				else if(server.argName(i) == "RED")
 				{
-					wordp->r = abs(atoi(server.arg(i).c_str()));
-					if(wordp->r > 100)
-					wordp->r = 100;
+					pval = strtol(server.arg(i).c_str(), NULL, 10);
+					if(server.arg(i).length() && !errno)
+					{
+						wordp->r = pval;
+						if(wordp->r > 100)
+							wordp->r = 100;
+					}
+					else
+						sprintf(outstr + strlen(outstr), "RED=%d\r\n", wordp->r);
 				}
 				else if(server.argName(i) == "GREEN")
 				{
-					wordp->g = abs(atoi(server.arg(i).c_str()));
-					if(wordp->g > 100)
-					wordp->g = 100;
+					pval = strtol(server.arg(i).c_str(), NULL, 10);
+					if(server.arg(i).length() && !errno)
+					{
+						wordp->g = pval;
+						if(wordp->g > 100)
+						wordp->g = 100;
+					}
+					else
+						sprintf(outstr + strlen(outstr), "GREEN=%d\r\n", wordp->g);
 				}
 				else if(server.argName(i) == "BLUE")
 				{
-					wordp->b = abs(atoi(server.arg(i).c_str()));
-					if(wordp->b > 100)
-					wordp->b = 100;
+					pval = strtol(server.arg(i).c_str(), NULL, 10);
+					if(server.arg(i).length() && !errno)
+					{
+						wordp->b = pval;
+						if(wordp->b > 100)
+						wordp->b = 100;
+					}
+					else
+						sprintf(outstr + strlen(outstr), "BLUE=%d\r\n", wordp->b);
 				}
 				else if(server.argName(i) == "PREC_ETWA")
 				{
 					if(server.arg(i) == "on")
-					wordp->precise |= 0x02;
+						wordp->precise |= 0x02;
+					else if(server.arg(i) == "off")
+						wordp->precise &= ~0x02;
 					else
-					wordp->precise &= ~0x02;
+						sprintf(outstr + strlen(outstr), "PREC_ETWA=%s\r\n", (wordp->precise &= ~0x02)?"on":"off");
 				}
 				else if(server.argName(i) == "PREC_GENAU")
 				{
 					if(server.arg(i) == "on")
-					wordp->precise |= 0x01;
+						wordp->precise |= 0x01;
+					else if(server.arg(i) == "off")
+						wordp->precise &= ~0x01;
 					else
-					wordp->precise &= ~0x01;
+						sprintf(outstr + strlen(outstr), "PREC_GENAU=%s\r\n", (wordp->precise &= ~0x01)?"on":"off");
 				}
 				else if(server.argName(i) == "TRAILER")
 				{
 					if(server.arg(i) == "on")
-					wordp->trailer = 1;
+						wordp->trailer = 1;
+					else if(server.arg(i) == "off")
+						wordp->trailer = 0;
+					else
+						sprintf(outstr + strlen(outstr), "TRAILER=%s\r\n", (wordp->trailer)?"on":"off");
 				}
 			}
 			*tstr2 = 0;
@@ -570,10 +627,10 @@ void setup()
 
 void update_outputs(void)
 {
-	char tstr[128] = "";
 	int i, j, emin, min, hr;
 	time_t rawtime, loctime, atime;
 	int lvals[10];
+	char tstr[128];
 
 	if (wordp->mode < 2)								// wordclock-mode
 	{
@@ -665,6 +722,7 @@ void update_outputs(void)
 	}
 
 	FastLED.show();										// update LEDs
+	*tstr = 0;
 }
 
 void loop()
