@@ -3,7 +3,7 @@
 ![WordClock](pictures/wordclock.jpg)
 
 Eine Uhr mit Textanzeige der Uhrzeit basierend auf einem [ESP8266 NodeMCU](https://www.aliexpress.com/item/1PCS-ESP8266-NodeMCU-V3-Lua-WIFI-module-memory-32M-Flash-USB-serial-CH340G/32820380705.html) mit adressierbaren RGB-LED-Stripes und 3D-druckbaren Gehäuseteilen
-Die 3D-Modelle für das Gehäuse sind auf thingiverse.com [Uhren-Gehäuse](http://www.thingiverse.com/thing:2137765) und [ESP8266-Gehäuse](https://www.thingiverse.com/thing:2842012) verfügbar.
+Die 3D-Modelle für das Gehäuse sind auf thingiverse.com [Uhren-Gehäuse](https://www.prusaprinters.org/prints/140144-word-clock-german) und [ESP8266-Gehäuse](https://www.prusaprinters.org/prints/140135-esp8266-esp-12e-case) verfügbar.
 
 Die Software ist eine Quick'n Dirty-Adaption meiner für den [RaspberryPi](https://github.com/xSnowHeadx/word-clock) geschriebenen Software natürlich ohne Audio-Funktionen. Sie wird (wenn mal Zeit ist) besser strukturiert und der Web-Server überarbeitet.
 
@@ -13,7 +13,7 @@ Für den Aufbau der Word-Clock werden folgende Komponenten benötigt:
 
 - [ESP8266 NodeMCU](https://www.aliexpress.com/item/1PCS-ESP8266-NodeMCU-V3-Lua-WIFI-module-memory-32M-Flash-USB-serial-CH340G/32820380705.html)
 - [WS2811 RGB LED Strip](http://www.ebay.de/itm/WS2812B-LED-Stripe-4m-RGB-60-LEDs-m-Klebestreifen-WS2811-WS2812-/251901768682?pt=LH_DefaultDomain_77&hash=item3aa683f3ea): Die Gehäuseteile sind für die Verwendung dieser LED ausgelegt. Bei bestimmten LED-Typen benötigt man einen Pegelwandler von den 3,3V des ESP8266 auf die 5V der LED. 
-- optional [ESP8266-Gehäuse](https://www.thingiverse.com/thing:2842012)
+- optional [ESP8266-Gehäuse](https://www.prusaprinters.org/prints/140135-esp8266-esp-12e-case)
 - 1 [5V-Netzteil](http://www.amazon.de/gp/product/B004S7U4IO)
 - diverse Kabel, Lötwerkzeug
 - die 3D-gedruckten Gehäuseteile
